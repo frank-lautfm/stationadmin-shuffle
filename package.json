@@ -1,0 +1,14 @@
+{
+  "name": "stationadmin-shuffle",
+  "version": "1.0.0",
+  "description": "StationAdmin shuffle algorithm scripts for laut.fm",
+  "type": "commonjs",
+  "scripts": {
+    "build": "cd src && npx tsc && npx prettier --write StationAdmin.js && node -e \"const fs=require('fs'),f='StationAdmin.js',h=fs.readFileSync('StationAdmin.ts','utf8').split('\\n').slice(0,2).join('\\n')+'\\n\\n';fs.writeFileSync(f,h+fs.readFileSync(f,'utf8'));\"",
+    "test": "node test/StationAdminTests.js",
+    "build-and-test": "npm run build && npm test"
+  },
+  "dependencies": {
+    "alea": "^0.0.9"
+  }
+}
