@@ -67,5 +67,6 @@ Standalone scripts that call the laut.fm API directly. Require a valid API token
 | File | Description |
 |------|-------------|
 | [`doc/StationAdmin.md`](doc/StationAdmin.md) | Full documentation for the main shuffle algorithm |
+| [`doc/user/StationAdmin_de.md`](doc/user/StationAdmin_de.md) | User friendly documentation in german language |
 | [`doc/BlockSelect.md`](doc/BlockSelect.md) | Documentation for the BlockSelect_v1 block-selection algorithm |
 | [`doc/Resume.md`](doc/Resume.md) | Documentation for the Resume continuation algorithm |
