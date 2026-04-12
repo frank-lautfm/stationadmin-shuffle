@@ -1,5 +1,5 @@
-// StationAdmin v4.1.0
-// 04.04.2026
+// StationAdmin v4.1.1
+// 12.04.2026
 
 // Type definitions
 
@@ -95,6 +95,7 @@ interface ScheduledElement {
   jingleCollision: string;
   type: string;
   newsPosition?: string;
+  preBlockArtist?: string;
 }
 
 interface BoundTrackMap {
@@ -794,6 +795,11 @@ interface ShuffleOptions {
               this.lastStartedAt[track.id] = ts.getTime();
               trackIdx = (trackIdx + trackIdxInc) % rule.tracks!.length;
               scheduledElement.tracks = selTracks;
+              if (track.type == SONG) {
+                scheduledElement.preBlockArtist = 'artistNormalized' in track
+                  ? track.artistNormalized!
+                  : trackPool.normalizeArtist(track.artist);
+              }
             }
 
             customScheduledElementCreate(rule, trackIdx, scheduledElement);
@@ -1359,10 +1365,27 @@ interface ShuffleOptions {
 
   class TrackSelectorBase {
     artistBlocked: { [name: string]: number } = {};
+    artistScheduled: { [name: string]: number[] } = {};
     recentTrackNames: string[][] = [];
     matchingRules: TagSequenceRule[] = [];
     artistBlockDuration: number = tagPattern.length > 0 ? HOUR : MIN * 30;
     tagSequenceRules: TagSequenceRule[] = opts.tagSequences ?? [];
+
+    isScheduledPreBlocked(artistNormalized: string, currentTime: number): boolean {
+      var times = this.artistScheduled[artistNormalized];
+      if (!times) return false;
+      while (times.length > 0 && currentTime >= times[0]) {
+        times.shift();
+      }
+      return times.length > 0 && currentTime >= times[0] - this.artistBlockDuration;
+    }
+
+    isArtistPreBlocked(artistNormalized: string, currentTime: number): boolean {
+      if (artistNormalized in this.artistBlocked && currentTime < this.artistBlocked[artistNormalized]) {
+        return true;
+      }
+      return this.isScheduledPreBlocked(artistNormalized, currentTime);
+    }
 
     checkTagSequenceRules(track: Track): TagSequenceRule[] {
       var matchingRules: TagSequenceRule[] = [];
@@ -1412,10 +1435,8 @@ interface ShuffleOptions {
         var penalty = 0;
 
         // Rule 1: Artist blocking
-        if (track.type == SONG && 'artistNormalized' in track && track.artistNormalized! in this.artistBlocked) {
-          if (currentTime < this.artistBlocked[track.artistNormalized!]) {
-            penalty += 3;
-          }
+        if (track.type == SONG && 'artistNormalized' in track && this.isArtistPreBlocked(track.artistNormalized!, currentTime)) {
+          penalty += 3;
         }
 
         // Rule 2: Track name deduplication (exclude tag sequence rules as per requirements)
@@ -1463,10 +1484,8 @@ interface ShuffleOptions {
         checkedMatches++;
 
         // Rule 1: Artist blocking
-        if ('artistNormalized' in track && track.artistNormalized! in this.artistBlocked) {
-          if (currentTime < this.artistBlocked[track.artistNormalized!]) {
-            penalty += 3;
-          }
+        if ('artistNormalized' in track && this.isArtistPreBlocked(track.artistNormalized!, currentTime)) {
+          penalty += 3;
         }
 
         // Rule 2: Tag sequence rules
@@ -1550,8 +1569,8 @@ interface ShuffleOptions {
       for (var cIdx = 0; cIdx < candidates.length; cIdx++) {
         var track = songPool[candidates[cIdx]];
         if (track != null) {
-          // Artist blocking check (skip entirely if blocked, don't count as checked)
-          var artistAccepted = track.type == SONG && 'artistNormalized' in track && track.artistNormalized! in this.artistBlocked ? currentTime > this.artistBlocked[track.artistNormalized!] : true;
+        // Artist blocking check (skip entirely if blocked, don't count as checked)
+        var artistAccepted = !(track.type == SONG && 'artistNormalized' in track && this.isArtistPreBlocked(track.artistNormalized!, currentTime));
           if (artistAccepted) {
             var penalty = 0;
             checkedMatches++;
@@ -1942,6 +1961,21 @@ interface ShuffleOptions {
     tagPatternSelector.initializePatternIndex(songPool);
   } else {
     selector = selectorBase;
+  }
+
+  // Populate artist pre-block schedule from non-late-selection scheduled songs.
+  // scheduledTracks is already sorted by minTime (above), so arrays are in ascending order.
+  if (schedulingRulesEnabled) {
+    for (var i = 0; i < scheduler.scheduledTracks.length; i++) {
+      var se = scheduler.scheduledTracks[i];
+      if ('preBlockArtist' in se) {
+        var preBlockArtist = se.preBlockArtist!;
+        if (!(preBlockArtist in activeSelector.artistScheduled)) {
+          activeSelector.artistScheduled[preBlockArtist] = [];
+        }
+        activeSelector.artistScheduled[preBlockArtist].push(se.minTime);
+      }
+    }
   }
 
   // Unified assembly loop

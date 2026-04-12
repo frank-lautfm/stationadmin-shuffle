@@ -1,5 +1,5 @@
-// StationAdmin v4.1.0
-// 04.04.2026
+// StationAdmin v4.1.1
+// 12.04.2026
 
 (function (tracks, opts, trackStats) {
  const SONG = "song";
@@ -582,6 +582,10 @@
        this.lastStartedAt[track.id] = ts.getTime();
        trackIdx = (trackIdx + trackIdxInc) % rule.tracks.length;
        scheduledElement.tracks = selTracks;
+       if (track.type == SONG) {
+        scheduledElement.preBlockArtist =
+         "artistNormalized" in track ? track.artistNormalized : trackPool.normalizeArtist(track.artist);
+       }
       }
       customScheduledElementCreate(rule, trackIdx, scheduledElement);
       this.scheduledTracks.push(scheduledElement);
@@ -1077,10 +1081,25 @@
  class TrackSelectorBase {
   constructor() {
    this.artistBlocked = {};
+   this.artistScheduled = {};
    this.recentTrackNames = [];
    this.matchingRules = [];
    this.artistBlockDuration = tagPattern.length > 0 ? HOUR : MIN * 30;
    this.tagSequenceRules = opts.tagSequences ?? [];
+  }
+  isScheduledPreBlocked(artistNormalized, currentTime) {
+   var times = this.artistScheduled[artistNormalized];
+   if (!times) return false;
+   while (times.length > 0 && currentTime >= times[0]) {
+    times.shift();
+   }
+   return times.length > 0 && currentTime >= times[0] - this.artistBlockDuration;
+  }
+  isArtistPreBlocked(artistNormalized, currentTime) {
+   if (artistNormalized in this.artistBlocked && currentTime < this.artistBlocked[artistNormalized]) {
+    return true;
+   }
+   return this.isScheduledPreBlocked(artistNormalized, currentTime);
   }
   checkTagSequenceRules(track) {
    var matchingRules = [];
@@ -1123,10 +1142,12 @@
     var track = candidates[cIdx];
     if (track == null) continue;
     var penalty = 0;
-    if (track.type == SONG && "artistNormalized" in track && track.artistNormalized in this.artistBlocked) {
-     if (currentTime < this.artistBlocked[track.artistNormalized]) {
-      penalty += 3;
-     }
+    if (
+     track.type == SONG &&
+     "artistNormalized" in track &&
+     this.isArtistPreBlocked(track.artistNormalized, currentTime)
+    ) {
+     penalty += 3;
     }
     var recentNames = this.recentTrackNames;
     if (
@@ -1171,10 +1192,8 @@
     }
     var penalty = 0;
     checkedMatches++;
-    if ("artistNormalized" in track && track.artistNormalized in this.artistBlocked) {
-     if (currentTime < this.artistBlocked[track.artistNormalized]) {
-      penalty += 3;
-     }
+    if ("artistNormalized" in track && this.isArtistPreBlocked(track.artistNormalized, currentTime)) {
+     penalty += 3;
     }
     for (var rr = 0; rr < this.matchingRules.length; rr++) {
      var result = track.tags.includes(this.matchingRules[rr].next);
@@ -1257,10 +1276,11 @@
    for (var cIdx = 0; cIdx < candidates.length; cIdx++) {
     var track = songPool[candidates[cIdx]];
     if (track != null) {
-     var artistAccepted =
-      track.type == SONG && "artistNormalized" in track && track.artistNormalized in this.artistBlocked
-       ? currentTime > this.artistBlocked[track.artistNormalized]
-       : true;
+     var artistAccepted = !(
+      track.type == SONG &&
+      "artistNormalized" in track &&
+      this.isArtistPreBlocked(track.artistNormalized, currentTime)
+     );
      if (artistAccepted) {
       var penalty = 0;
       checkedMatches++;
@@ -1585,6 +1605,18 @@
   tagPatternSelector.initializePatternIndex(songPool);
  } else {
   selector = selectorBase;
+ }
+ if (schedulingRulesEnabled) {
+  for (var i = 0; i < scheduler.scheduledTracks.length; i++) {
+   var se = scheduler.scheduledTracks[i];
+   if ("preBlockArtist" in se) {
+    var preBlockArtist = se.preBlockArtist;
+    if (!(preBlockArtist in activeSelector.artistScheduled)) {
+     activeSelector.artistScheduled[preBlockArtist] = [];
+    }
+    activeSelector.artistScheduled[preBlockArtist].push(se.minTime);
+   }
+  }
  }
  var playlistLen = 0;
  while (playlistLen < duration * 1000 && selector.hasMore(songPool)) {

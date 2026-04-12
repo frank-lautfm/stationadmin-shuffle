@@ -1404,6 +1404,79 @@ testWithMultipleSeeds('patternScheduledItemLateSelection - basic shuffle with a 
 });
 
 
+// Test: scheduledItemPreBlockArtist
+// Verifies that when a song is scheduled by rule (non-late-selection), the artist is blocked
+// in the artistBlockDuration window before the scheduled time, preventing the selector from
+// placing another song from the same artist shortly before the scheduled slot.
+testWithMultipleSeeds('scheduledItemPreBlockArtist - scheduled song artist is pre-blocked before scheduled time', (seed) => {
+    const tracks = loadTracksFromFile('tracks_scheduled_items.json');
+
+    const scheduledTrackId = 13983;
+    for (let i = 0; i < tracks.length; i++) {
+        if (tracks[i].id === scheduledTrackId) {
+            tracks[i].tags.push('ScheduledArtist');
+        }
+    }
+
+    const trackStats = [];
+    const duration = 14400; // 4 hours
+
+    const opts = {
+        duration: duration,
+        jingleInterval: 20,
+        maxTracksPerArtist: 4,
+        time: time2,
+        scheduled: [ {
+            selection: 'index',
+            index: 1,
+            exclude: true,
+            hour: 22,
+            minute: 15,
+            tag: 'ScheduledArtist'
+        } ]
+    };
+
+    const result = executeShuffleFunction(tracks, opts, trackStats, seed);
+
+    assert.ok(Array.isArray(result), 'Result should be an array');
+
+    // Find the scheduled song and its cumulative time offset from startTime
+    const startMs = new Date(time2).getTime() + 120 * 1000; // startTime approximation
+    let cumulativeMs = 0;
+    let scheduledIdx = -1;
+    let scheduledTimeMs = -1;
+
+    for (let i = 0; i < result.length; i++) {
+        if (result[i].id === scheduledTrackId) {
+            scheduledIdx = i;
+            scheduledTimeMs = startMs + cumulativeMs;
+            break;
+        }
+        cumulativeMs += result[i].duration * 1000;
+    }
+
+    // The scheduled track must appear in the result
+    assert.ok(scheduledIdx > -1, 'Scheduled track (id ' + scheduledTrackId + ') must appear in result');
+
+    // Walk backwards from the scheduled track and check no same-artist song
+    // appears within artistBlockDuration (30 min = 1800 s) before it
+    const artistBlockDurationMs = 30 * 60 * 1000;
+    const scheduledArtist = result[scheduledIdx].artist;
+    let lookbackMs = 0;
+
+    for (let i = scheduledIdx - 1; i >= 0; i--) {
+        lookbackMs += result[i].duration * 1000;
+        if (lookbackMs > artistBlockDurationMs) break;
+        if (result[i].type === 'song' && result[i].artist === scheduledArtist) {
+            assert.fail(
+                'Artist "' + scheduledArtist + '" appears at position ' + i +
+                ' which is only ' + Math.round(lookbackMs / 1000) + 's before the scheduled slot ' +
+                '(minimum ' + (artistBlockDurationMs / 1000) + 's required)'
+            );
+        }
+    }
+});
+
 // Test: noPatternWordDistributionPreserve
 testWithMultipleSeeds('noPatternWordDistributionPreserve - basic shuffle with preserved moderation tracks', (seed) => {
     // Load tracks from the test resource file
