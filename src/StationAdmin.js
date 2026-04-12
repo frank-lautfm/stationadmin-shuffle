@@ -501,7 +501,11 @@
     trackIdxInc = 0;
    } else {
     shuffle(rule.tracks);
-    if (rule.tracks.length > 0 && rule.tracks[0].type == SONG) {
+    if (
+     rule.tracks.length > 1 &&
+     rule.tracks[0].type == SONG &&
+     rule.tracks.some((t) => t.artistNormalized !== rule.tracks[0].artistNormalized)
+    ) {
      useLateSelection = true;
     }
    }
