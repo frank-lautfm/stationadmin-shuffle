@@ -1,5 +1,5 @@
-// StationAdmin v4.1.1
-// 12.04.2026
+// StationAdmin v4.1.2
+// 03.06.2026
 
 (function (tracks, opts, trackStats) {
  const SONG = "song";
@@ -244,14 +244,6 @@
     }
    }
   }
-  receiveSpecialTracks(specialTracks) {
-   this.newsTrack = specialTracks.newsTrack;
-   this.preNewsJingle = specialTracks.preNewsJingle;
-   this.firstJingle = specialTracks.firstJingle;
-   this.jingles = specialTracks.jingles;
-   this.adTrigger = specialTracks.adTrigger;
-   this.adSeparator = specialTracks.adSeparator;
-  }
   pushScheduledJingle(track, minTime) {
    this.scheduledTracks.push({
     tracks: [track],
@@ -366,7 +358,6 @@
     jingleCollision = "remove_jingle";
    }
    newsTracks.push(this.newsTrack);
-   this.newsTrack.duration = 165;
    if (this.firstJingle != null && firstJingleAfterNews) {
     newsTracks.push(this.firstJingle);
     jingleCollision = "remove_jingle";
@@ -816,9 +807,24 @@
    var excludeFollowing = false;
    var songCnt = 0;
    for (var i = start; i < tracks.length; i++) {
-    if (tracks[i].id == 1) {
-     this.scheduler.newsTrack = tracks[i];
-     continue;
+    if (tracks[i].type === NEWS) {
+     switch (tracks[i].id) {
+      case 1:
+       tracks[i].duration = 165;
+       if (!this.scheduler.newsTrack) {
+        this.scheduler.newsTrack = tracks[i];
+       }
+       continue;
+      case 2:
+       tracks[i].duration = 130;
+       if (!this.scheduler.newsTrack) {
+        this.scheduler.newsTrack = tracks[i];
+       }
+       continue;
+      case 3:
+       tracks[i].duration = 30;
+       continue;
+     }
     }
     if (
      (tracks[i].title != null && tracks[i].title.indexOf("START_AD_BREAK") > -1) ||
