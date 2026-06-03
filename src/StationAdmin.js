@@ -1,4 +1,4 @@
-// StationAdmin v4.1.2
+// StationAdmin v4.2.0
 // 03.06.2026
 
 (function (tracks, opts, trackStats) {
@@ -206,6 +206,7 @@
   constructor(trackRuleEngine) {
    this.scheduledTracks = [];
    this.selectorTags = {};
+   this.newsTracks = [];
    this.jingles = [];
    this.lastJinglePlay = -1;
    this.lastNewsStarted = 0;
@@ -351,15 +352,13 @@
    }
   }
   scheduleNews() {
-   var newsTracks = [];
+   var scheduledTracks = this.newsTracks.slice();
    var jingleCollision = "keep_both";
-   if (this.preNewsJingle != null) {
-    newsTracks.push(this.preNewsJingle);
+   if (scheduledTracks.some((t) => t.type === JINGLE)) {
     jingleCollision = "remove_jingle";
    }
-   newsTracks.push(this.newsTrack);
    if (this.firstJingle != null && firstJingleAfterNews) {
-    newsTracks.push(this.firstJingle);
+    scheduledTracks.push(this.firstJingle);
     jingleCollision = "remove_jingle";
    }
    var ts = new Date();
@@ -373,7 +372,7 @@
      if (time == startTime) this.startsWithNews = true;
      var diff = ts.getMinutes() < this.newsMax ? this.newsMax - ts.getMinutes() : this.newsMax + 60 - ts.getMinutes();
      var scheduledNews = {
-      tracks: newsTracks,
+      tracks: scheduledTracks,
       minTime: ts.getTime(),
       maxTime: ts.getTime() + MIN * diff,
       jingleCollision: jingleCollision,
@@ -792,17 +791,39 @@
    var artistMap = {};
    var tracksDuration = 0;
    var start = 0;
-   if ((tracks.length > 2 && tracks[0].type == NEWS) || (tracks[0].type == JINGLE && tracks[1].type == NEWS)) {
-    if (tracks[0].type == JINGLE) {
-     this.scheduler.preNewsJingle = tracks[0];
-     start++;
+   if (
+    tracks.length > 1 &&
+    (tracks[0].type == NEWS || (tracks[0].type == JINGLE && tracks[1] && tracks[1].type == NEWS))
+   ) {
+    var newsCount = 0;
+    var scanIdx = 0;
+    while (scanIdx < tracks.length && newsCount < 2) {
+     var scanTrack = tracks[scanIdx];
+     if (scanTrack.type == NEWS) {
+      this.scheduler.newsTracks.push(scanTrack);
+      newsCount++;
+      scanIdx++;
+      if (newsCount < 2 && scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
+       var nextNewsIdx = scanIdx + 1;
+       if (nextNewsIdx < tracks.length && tracks[nextNewsIdx].type == NEWS) {
+        this.scheduler.newsTracks.push(tracks[scanIdx]);
+        scanIdx++;
+       } else {
+        break;
+       }
+      }
+     } else if (scanTrack.type == JINGLE && newsCount == 0) {
+      this.scheduler.newsTracks.push(scanTrack);
+      scanIdx++;
+     } else {
+      break;
+     }
     }
-    this.scheduler.newsTrack = tracks[start];
-    start++;
-    if (firstJingleAfterNews && tracks[start].type == JINGLE) {
-     this.scheduler.firstJingle = tracks[start];
-     start++;
+    if (firstJingleAfterNews && scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
+     this.scheduler.firstJingle = tracks[scanIdx];
+     scanIdx++;
     }
+    start = scanIdx;
    }
    var excludeFollowing = false;
    var songCnt = 0;
@@ -811,20 +832,18 @@
      switch (tracks[i].id) {
       case 1:
        tracks[i].duration = 165;
-       if (!this.scheduler.newsTrack) {
-        this.scheduler.newsTrack = tracks[i];
-       }
-       continue;
+       break;
       case 2:
        tracks[i].duration = 130;
-       if (!this.scheduler.newsTrack) {
-        this.scheduler.newsTrack = tracks[i];
-       }
-       continue;
+       break;
       case 3:
        tracks[i].duration = 30;
-       continue;
+       break;
      }
+     if (this.scheduler.newsTracks.length == 0) {
+      this.scheduler.newsTracks.push(tracks[i]);
+     }
+     continue;
     }
     if (
      (tracks[i].title != null && tracks[i].title.indexOf("START_AD_BREAK") > -1) ||
@@ -1582,7 +1601,7 @@
    }
   }
  }
- if (scheduler.newsTrack != null) {
+ if (scheduler.newsTracks.length > 0) {
   scheduler.scheduleNews();
  }
  if (tagPattern.length == 0 || !tagPatternContainsJingles) {

@@ -1,4 +1,4 @@
-// StationAdmin v4.1.2
+// StationAdmin v4.2.0
 // 03.06.2026
 
 // Type definitions
@@ -370,8 +370,7 @@ interface ShuffleOptions {
   class Scheduler {
     scheduledTracks: ScheduledElement[] = [];
     selectorTags: { [tag: string]: ScheduledRule[] } = {};
-    newsTrack: Track | undefined;
-    preNewsJingle: Track | undefined;
+    newsTracks: Track[] = [];
     firstJingle: Track | undefined;
     jingles: Track[] = [];
     adTrigger: Track | undefined;
@@ -540,15 +539,13 @@ interface ShuffleOptions {
     }
 
     scheduleNews(): void {
-      var newsTracks: Track[] = [];
+      var scheduledTracks: Track[] = this.newsTracks.slice();
       var jingleCollision = 'keep_both';
-      if (this.preNewsJingle != null) {
-        newsTracks.push(this.preNewsJingle);
+      if (scheduledTracks.some(t => t.type === JINGLE)) {
         jingleCollision = 'remove_jingle';
       }
-      newsTracks.push(this.newsTrack!);
       if (this.firstJingle != null && firstJingleAfterNews) {
-        newsTracks.push(this.firstJingle);
+        scheduledTracks.push(this.firstJingle);
         jingleCollision = 'remove_jingle';
       }
 
@@ -564,7 +561,7 @@ interface ShuffleOptions {
           if (time == startTime) this.startsWithNews = true;
           var diff = ts.getMinutes() < this.newsMax ? this.newsMax - ts.getMinutes() : this.newsMax + 60 - ts.getMinutes();
           var scheduledNews: ScheduledElement = {
-            tracks: newsTracks,
+            tracks: scheduledTracks,
             minTime: ts.getTime(),
             maxTime: ts.getTime() + MIN * diff,
             jingleCollision: jingleCollision,
@@ -1034,18 +1031,44 @@ interface ShuffleOptions {
 
       var start = 0;
 
-      // check for jingle-news pattern at the beginning
-      if (tracks.length > 2 && (tracks[0].type == NEWS) || (tracks[0].type == JINGLE && tracks[1].type == NEWS)) {
-        if (tracks[0].type == JINGLE) {
-          this.scheduler.preNewsJingle = tracks[0];
-          start++;
+      // check for news/jingle pattern at the beginning (up to 2 news tracks, 1 jingle between them)
+      if (tracks.length > 1 && ((tracks[0].type == NEWS) || (tracks[0].type == JINGLE && tracks[1] && tracks[1].type == NEWS))) {
+        var newsCount = 0;
+        var scanIdx = 0;
+
+        while (scanIdx < tracks.length && newsCount < 2) {
+          var scanTrack = tracks[scanIdx];
+          if (scanTrack.type == NEWS) {
+            this.scheduler.newsTracks.push(scanTrack);
+            newsCount++;
+            scanIdx++;
+            // Allow at most one jingle between two news tracks (only if another news track follows)
+            if (newsCount < 2 && scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
+              var nextNewsIdx = scanIdx + 1;
+              if (nextNewsIdx < tracks.length && tracks[nextNewsIdx].type == NEWS) {
+                this.scheduler.newsTracks.push(tracks[scanIdx]);
+                scanIdx++;
+              } else {
+                // Jingle is not between two news tracks — stop scanning
+                break;
+              }
+            }
+          } else if (scanTrack.type == JINGLE && newsCount == 0) {
+            // Leading jingle before first news
+            this.scheduler.newsTracks.push(scanTrack);
+            scanIdx++;
+          } else {
+            break;
+          }
         }
-        this.scheduler.newsTrack = tracks[start];
-        start++;
-        if (firstJingleAfterNews && tracks[start].type == JINGLE) {
-          this.scheduler.firstJingle = tracks[start];
-          start++;
+
+        // After the last news track, capture a trailing jingle as firstJingle if applicable
+        if (firstJingleAfterNews && scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
+          this.scheduler.firstJingle = tracks[scanIdx];
+          scanIdx++;
         }
+
+        start = scanIdx;
       }
 
       var excludeFollowing = false;
@@ -1053,24 +1076,23 @@ interface ShuffleOptions {
       var songCnt = 0;
 
       for (var i = start; i < tracks.length; i++) {
-        if(tracks[i].type === NEWS) { 
+        if(tracks[i].type === NEWS) {
           switch(tracks[i].id) {
             case 1: // Nachrichten und Wetter
               tracks[i].duration = 165;
-              if(!this.scheduler.newsTrack) {
-                this.scheduler.newsTrack = tracks[i];
-              }
-              continue;
+              break;
             case 2: // Nachrichten
               tracks[i].duration = 130;
-              if(!this.scheduler.newsTrack) {
-                this.scheduler.newsTrack = tracks[i];
-              }
-              continue;
+              break;
             case 3: // Wetter
               tracks[i].duration = 30;
-              continue;
+              break;
           }
+          if(this.scheduler.newsTracks.length == 0) {
+            this.scheduler.newsTracks.push(tracks[i]);
+          }
+          continue;
+
         }
         if ((tracks[i].title != null && tracks[i].title!.indexOf('START_AD_BREAK') > -1) ||
           (tracks[i].artist != null && tracks[i].artist!.indexOf('START_AD_BREAK') > -1)) {
@@ -1914,7 +1936,7 @@ interface ShuffleOptions {
     }
   }
 
-  if (scheduler.newsTrack != null) {
+  if (scheduler.newsTracks.length > 0) {
     scheduler.scheduleNews();
   }
   if (tagPattern.length == 0 || !tagPatternContainsJingles) {

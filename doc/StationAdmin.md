@@ -1,6 +1,6 @@
 # StationAdmin Shuffle Algorithm Documentation
 
-**Version:** 4.1.0  
+**Version:** 4.2.0
 **Source:** [`src/StationAdmin.ts`](../src/StationAdmin.ts)
 
 ## Overview
@@ -208,6 +208,28 @@ The news window defines the minutes-past-the-hour range in which a news break ma
 A news break is only scheduled if at least 45 minutes have elapsed since the last news. News is not scheduled in the last 15 minutes of the playlist.
 
 If the playlist starts within the news window, the first element is a news block (`startsWithNews = true`), and `firstJingle` is not prepended at the very beginning.
+
+**News/Jingle Sequence Detection:**
+
+When the playlist begins with a news track as the first or second track, the algorithm scans the opening tracks for a news/jingle sequence and stores it as an ordered `newsTracks` array. This sequence is inserted in full at every scheduled news break.
+
+Valid opening patterns include (but are not limited to):
+
+```
+news
+jingle news
+news jingle (trailing jingle → firstJingle)
+jingle news jingle (trailing jingle → firstJingle)
+news news
+jingle news jingle news jingle (trailing jingle → firstJingle)
+jingle news news jingle (trailing jingle → firstJingle)
+```
+
+Detection rules:
+- At most **two news tracks** are captured.
+- At most **one jingle** is allowed between two consecutive news tracks.
+- A jingle immediately after the last news track is captured as `firstJingle` (only when `firstJingleAfterNews` is true) and is not part of `newsTracks`.
+- Scanning stops at the first track that does not fit the pattern.
 
 #### Ad Trigger Options
 
@@ -486,7 +508,7 @@ After each iteration, `lastPlays` is updated with the minutes-since-play for eac
 
 Before assembly, all time-based events are computed and sorted:
 
-1. **News scheduling** (`scheduleNews()`): For each news window occurrence within the playlist duration, a `ScheduledElement` is created containing `[preNewsJingle?, newsTrack, firstJingle?]`. The `jingleCollision` strategy is set to `'remove_jingle'` if jingles are present.
+1. **News scheduling** (`scheduleNews()`): For each news window occurrence within the playlist duration, a `ScheduledElement` is created containing the full detected `newsTracks` sequence (which may include leading jingles, up to two news tracks, and interleaved jingles), followed by `firstJingle` if `firstJingleAfterNews` is true. The `jingleCollision` strategy is set to `'remove_jingle'` if any jingles are present in the scheduled tracks.
 
 2. **Jingle scheduling** (`scheduleJingles()`): Jingles are distributed at `jingleInterval`-minute intervals. The first offset is determined by `lastJinglePlay` (from stats) or randomized. When a news jingle falls within one interval of a regular jingle slot, the regular jingle's base is reset to align with the news jingle, keeping the spacing even. In tag pattern mode, jingles are only scheduled separately if no jingle track has a tag referenced by the pattern.
 
