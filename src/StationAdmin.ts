@@ -1,5 +1,5 @@
 // StationAdmin v4.2.0
-// 03.06.2026
+// 04.06.2026
 
 // Type definitions
 
@@ -544,10 +544,6 @@ interface ShuffleOptions {
       if (scheduledTracks.some(t => t.type === JINGLE)) {
         jingleCollision = 'remove_jingle';
       }
-      if (this.firstJingle != null && firstJingleAfterNews) {
-        scheduledTracks.push(this.firstJingle);
-        jingleCollision = 'remove_jingle';
-      }
 
       var ts = new Date();
       var time = startTime;
@@ -1031,6 +1027,8 @@ interface ShuffleOptions {
 
       var start = 0;
 
+      var protectFirstJingle = 'protectFirstJingle' in opts && opts.protectFirstJingle;
+
       // check for news/jingle pattern at the beginning (up to 2 news tracks, 1 jingle between them)
       if (tracks.length > 1 && ((tracks[0].type == NEWS) || (tracks[0].type == JINGLE && tracks[1] && tracks[1].type == NEWS))) {
         var newsCount = 0;
@@ -1063,8 +1061,13 @@ interface ShuffleOptions {
         }
 
         // After the last news track, capture a trailing jingle as firstJingle if applicable
-        if (firstJingleAfterNews && scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
-          this.scheduler.firstJingle = tracks[scanIdx];
+        if (scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
+          if(firstJingleAfterNews) {
+            this.scheduler.newsTracks.push(tracks[scanIdx]);
+          }
+          if(protectFirstJingle) {
+            this.scheduler.firstJingle = tracks[scanIdx];
+          }
           scanIdx++;
         }
 
@@ -1158,7 +1161,7 @@ interface ShuffleOptions {
               this.preservedTracks.push(tracks[i]);
               this.hasPreservedTracks = true;
             }
-            else if ((i == 0 || (i == 1 && tracks[0].id == 1)) && 'protectFirstJingle' in opts && opts.protectFirstJingle) {
+            else if (i == 0 && protectFirstJingle) {
               this.scheduler.firstJingle = tracks[i];
             }
             else {

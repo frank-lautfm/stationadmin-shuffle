@@ -1,5 +1,5 @@
 // StationAdmin v4.2.0
-// 03.06.2026
+// 04.06.2026
 
 (function (tracks, opts, trackStats) {
  const SONG = "song";
@@ -355,10 +355,6 @@
    var scheduledTracks = this.newsTracks.slice();
    var jingleCollision = "keep_both";
    if (scheduledTracks.some((t) => t.type === JINGLE)) {
-    jingleCollision = "remove_jingle";
-   }
-   if (this.firstJingle != null && firstJingleAfterNews) {
-    scheduledTracks.push(this.firstJingle);
     jingleCollision = "remove_jingle";
    }
    var ts = new Date();
@@ -791,6 +787,7 @@
    var artistMap = {};
    var tracksDuration = 0;
    var start = 0;
+   var protectFirstJingle = "protectFirstJingle" in opts && opts.protectFirstJingle;
    if (
     tracks.length > 1 &&
     (tracks[0].type == NEWS || (tracks[0].type == JINGLE && tracks[1] && tracks[1].type == NEWS))
@@ -819,8 +816,13 @@
       break;
      }
     }
-    if (firstJingleAfterNews && scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
-     this.scheduler.firstJingle = tracks[scanIdx];
+    if (scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
+     if (firstJingleAfterNews) {
+      this.scheduler.newsTracks.push(tracks[scanIdx]);
+     }
+     if (protectFirstJingle) {
+      this.scheduler.firstJingle = tracks[scanIdx];
+     }
      scanIdx++;
     }
     start = scanIdx;
@@ -901,7 +903,7 @@
        tracks[i].position = songCnt;
        this.preservedTracks.push(tracks[i]);
        this.hasPreservedTracks = true;
-      } else if ((i == 0 || (i == 1 && tracks[0].id == 1)) && "protectFirstJingle" in opts && opts.protectFirstJingle) {
+      } else if (i == 0 && protectFirstJingle) {
        this.scheduler.firstJingle = tracks[i];
       } else {
        this.scheduler.jingles.push(tracks[i]);
