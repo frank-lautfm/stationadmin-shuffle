@@ -1085,7 +1085,7 @@ interface ShuffleOptions {
               tracks[i].duration = 165;
               break;
             case 2: // Nachrichten
-              tracks[i].duration = 130;
+              tracks[i].duration = 135;
               break;
             case 3: // Wetter
               tracks[i].duration = 30;
@@ -1898,7 +1898,7 @@ interface ShuffleOptions {
           trackRuleEngine.markRuleApplied(trackRuleEngine.boundTracks[trackStats[i].id].rules![r], started);
         }
       }
-      if (trackStats[i].id == 1) {
+      if (trackStats[i].id == 1 || trackStats[i].id == 2) { // exclude wheather here as it may repeat more often in a later version
         scheduler.lastNewsStarted = started;
       }
     }
