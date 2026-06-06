@@ -1,5 +1,5 @@
 // StationAdmin v4.2.0
-// 04.06.2026
+// 06.06.2026
 
 (function (tracks, opts, trackStats) {
  const SONG = "song";
@@ -356,6 +356,19 @@
    var jingleCollision = "keep_both";
    if (scheduledTracks.some((t) => t.type === JINGLE)) {
     jingleCollision = "remove_jingle";
+   }
+   for (var i = 0; i < this.newsTracks.length; i++) {
+    switch (this.newsTracks[i].id) {
+     case 1:
+      this.newsTracks[i].duration = 165;
+      break;
+     case 2:
+      this.newsTracks[i].duration = 140;
+      break;
+     case 3:
+      this.newsTracks[i].duration = 30;
+      break;
+    }
    }
    var ts = new Date();
    var time = startTime;
@@ -831,17 +844,6 @@
    var songCnt = 0;
    for (var i = start; i < tracks.length; i++) {
     if (tracks[i].type === NEWS) {
-     switch (tracks[i].id) {
-      case 1:
-       tracks[i].duration = 165;
-       break;
-      case 2:
-       tracks[i].duration = 130;
-       break;
-      case 3:
-       tracks[i].duration = 30;
-       break;
-     }
      if (this.scheduler.newsTracks.length == 0) {
       this.scheduler.newsTracks.push(tracks[i]);
      }
@@ -1572,7 +1574,7 @@
      trackRuleEngine.markRuleApplied(trackRuleEngine.boundTracks[trackStats[i].id].rules[r], started);
     }
    }
-   if (trackStats[i].id == 1) {
+   if (trackStats[i].id == 1 || trackStats[i].id == 2) {
     scheduler.lastNewsStarted = started;
    }
   }

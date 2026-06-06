@@ -1,5 +1,5 @@
 // StationAdmin v4.2.0
-// 04.06.2026
+// 06.06.2026
 
 // Type definitions
 
@@ -545,6 +545,22 @@ interface ShuffleOptions {
         jingleCollision = 'remove_jingle';
       }
 
+      
+      // Adjust length
+      for (var i = 0; i < this.newsTracks.length; i++) {
+        switch (this.newsTracks[i].id) {
+          case 1: // Nachrichten und Wetter
+            this.newsTracks[i].duration = 165;
+            break;
+          case 2: // Nachrichten
+            this.newsTracks[i].duration = 140;
+            break;
+          case 3: // Wetter
+            this.newsTracks[i].duration = 30;
+            break;
+        }
+      }
+
       var ts = new Date();
       var time = startTime;
       var endTime = startTime + duration * 1000;
@@ -1080,22 +1096,10 @@ interface ShuffleOptions {
 
       for (var i = start; i < tracks.length; i++) {
         if(tracks[i].type === NEWS) {
-          switch(tracks[i].id) {
-            case 1: // Nachrichten und Wetter
-              tracks[i].duration = 165;
-              break;
-            case 2: // Nachrichten
-              tracks[i].duration = 135;
-              break;
-            case 3: // Wetter
-              tracks[i].duration = 30;
-              break;
-          }
           if(this.scheduler.newsTracks.length == 0) {
             this.scheduler.newsTracks.push(tracks[i]);
           }
           continue;
-
         }
         if ((tracks[i].title != null && tracks[i].title!.indexOf('START_AD_BREAK') > -1) ||
           (tracks[i].artist != null && tracks[i].artist!.indexOf('START_AD_BREAK') > -1)) {
