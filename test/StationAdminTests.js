@@ -1693,3 +1693,71 @@ testWithMultipleSeeds('noPatternNewsPlusJingleNotFullHour - shuffle with news pl
 
 });
 */
+
+// Test: newsNoRepeatOnSecondIteration
+// Regression test for bug: when initTracksAndArtists is called a second time
+// (because the requested duration exceeds the total pool length), the news tracks
+// from the beginning of the tracks array were pushed into scheduler.newsTracks again,
+// causing them to appear multiple times in the output.
+//
+// tracks_news.json has ~15.3h of content; requesting 18h forces a second iteration.
+// The news track (id=1) must appear exactly once per scheduled hour — never twice
+// in a row or more than once within a 30-minute window.
+testWithMultipleSeeds('newsNoRepeatOnSecondIteration - no duplicate news on multi-iteration shuffle', (seed) => {
+    // tracks_news.json total pool ≈ 15.3h — requesting 18h forces iteration > 0
+    const tracks = loadTracksFromFile('tracks_news.json');
+    const trackStats = [];
+
+    const duration = 18 * 3600; // 64800s — longer than the pool, triggers second iteration
+
+    const opts = {
+        duration:      duration,
+        jingleInterval: 20,
+        maxTracksPerArtist: 2,
+        time:          time,
+        newsInterval:  60,
+        newsMin:       59,
+        newsMax:       15,
+    };
+
+    const result = executeShuffleFunction(tracks, opts, trackStats, seed);
+
+    // Basic sanity: result must be an array with tracks
+    assert.ok(Array.isArray(result) && result.length > 0, 'Result should be a non-empty array');
+
+    // Collect positions and cumulative timestamps of every news track in the output
+    let cumulativeSeconds = 0;
+    const newsOccurrences = []; // { index, time }
+
+    for (let i = 0; i < result.length; i++) {
+        if (result[i].type === 'news') {
+            newsOccurrences.push({ index: i, time: cumulativeSeconds });
+        }
+        cumulativeSeconds += result[i].duration || 0;
+    }
+
+    assert.ok(newsOccurrences.length > 0, 'At least one news track must appear in the output');
+
+    // No two consecutive news tracks (direct neighbours in the output)
+    for (let i = 1; i < result.length; i++) {
+        if (result[i].type === 'news') {
+            assert.notStrictEqual(
+                result[i - 1].type,
+                'news',
+                `Two consecutive news tracks at positions ${i - 1} and ${i} — duplicate news injection detected`
+            );
+        }
+    }
+
+    // No two news tracks within 30 minutes of each other
+    // (legitimate news fires every ~60 min; a duplicate would appear within seconds/minutes)
+    const minGapSeconds = 30 * 60;
+    for (let i = 1; i < newsOccurrences.length; i++) {
+        const gap = newsOccurrences[i].time - newsOccurrences[i - 1].time;
+        assert.ok(
+            gap >= minGapSeconds,
+            `News tracks at output positions ${newsOccurrences[i - 1].index} and ${newsOccurrences[i].index} ` +
+            `are only ${Math.round(gap / 60)}m apart — expected at least 30m (duplicate news bug)`
+        );
+    }
+});

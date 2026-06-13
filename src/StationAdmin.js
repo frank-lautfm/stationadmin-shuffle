@@ -1,5 +1,5 @@
-// StationAdmin v4.2.0
-// 06.06.2026
+// StationAdmin v4.2.1
+// 13.06.2026
 
 (function (tracks, opts, trackStats) {
  const SONG = "song";
@@ -645,6 +645,7 @@
   constructor(trackRuleEngine, scheduler) {
    this.recentArtists = {};
    this.lastPlays = {};
+   this.trackListOffset = 0;
    this.dateTagCache = {};
    this.preservedTracks = [];
    this.hasPreservedTracks = false;
@@ -799,47 +800,49 @@
    var artists = [];
    var artistMap = {};
    var tracksDuration = 0;
-   var start = 0;
-   var protectFirstJingle = "protectFirstJingle" in opts && opts.protectFirstJingle;
-   if (
-    tracks.length > 1 &&
-    (tracks[0].type == NEWS || (tracks[0].type == JINGLE && tracks[1] && tracks[1].type == NEWS))
-   ) {
-    var newsCount = 0;
-    var scanIdx = 0;
-    while (scanIdx < tracks.length && newsCount < 2) {
-     var scanTrack = tracks[scanIdx];
-     if (scanTrack.type == NEWS) {
-      this.scheduler.newsTracks.push(scanTrack);
-      newsCount++;
-      scanIdx++;
-      if (newsCount < 2 && scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
-       var nextNewsIdx = scanIdx + 1;
-       if (nextNewsIdx < tracks.length && tracks[nextNewsIdx].type == NEWS) {
-        this.scheduler.newsTracks.push(tracks[scanIdx]);
-        scanIdx++;
-       } else {
-        break;
+   if (iteration == 0) {
+    var protectFirstJingle = "protectFirstJingle" in opts && opts.protectFirstJingle;
+    if (
+     tracks.length > 1 &&
+     (tracks[0].type == NEWS || (tracks[0].type == JINGLE && tracks[1] && tracks[1].type == NEWS))
+    ) {
+     var newsCount = 0;
+     var scanIdx = 0;
+     while (scanIdx < tracks.length && newsCount < 2) {
+      var scanTrack = tracks[scanIdx];
+      if (scanTrack.type == NEWS) {
+       this.scheduler.newsTracks.push(scanTrack);
+       newsCount++;
+       scanIdx++;
+       if (newsCount < 2 && scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
+        var nextNewsIdx = scanIdx + 1;
+        if (nextNewsIdx < tracks.length && tracks[nextNewsIdx].type == NEWS) {
+         this.scheduler.newsTracks.push(tracks[scanIdx]);
+         scanIdx++;
+        } else {
+         break;
+        }
        }
+      } else if (scanTrack.type == JINGLE && newsCount == 0) {
+       this.scheduler.newsTracks.push(scanTrack);
+       scanIdx++;
+      } else {
+       break;
       }
-     } else if (scanTrack.type == JINGLE && newsCount == 0) {
-      this.scheduler.newsTracks.push(scanTrack);
+     }
+     if (scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
+      if (firstJingleAfterNews) {
+       this.scheduler.newsTracks.push(tracks[scanIdx]);
+      }
+      if (protectFirstJingle) {
+       this.scheduler.firstJingle = tracks[scanIdx];
+      }
       scanIdx++;
-     } else {
-      break;
      }
+     this.trackListOffset = scanIdx;
     }
-    if (scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
-     if (firstJingleAfterNews) {
-      this.scheduler.newsTracks.push(tracks[scanIdx]);
-     }
-     if (protectFirstJingle) {
-      this.scheduler.firstJingle = tracks[scanIdx];
-     }
-     scanIdx++;
-    }
-    start = scanIdx;
    }
+   var start = this.trackListOffset;
    var excludeFollowing = false;
    var songCnt = 0;
    for (var i = start; i < tracks.length; i++) {

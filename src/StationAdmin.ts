@@ -1,5 +1,5 @@
-// StationAdmin v4.2.0
-// 06.06.2026
+// StationAdmin v4.2.1
+// 13.06.2026
 
 // Type definitions
 
@@ -851,6 +851,7 @@ interface ShuffleOptions {
   class TrackPool {
     recentArtists: { [name: string]: boolean } = {};
     lastPlays: { [id: number]: number } = {};
+    trackListOffset: number = 0;
     dateTagCache: { [tag: string]: number } = {};
     preservedTracks: Track[] = [];
     hasPreservedTracks: boolean = false;
@@ -1041,54 +1042,60 @@ interface ShuffleOptions {
       var artistMap: { [name: string]: Artist } = {};
       var tracksDuration = 0;
 
-      var start = 0;
+      // On the first iteration, scan the news/jingle header at the start of the tracks array,
+      // register those tracks with the scheduler, and remember where the regular pool begins.
+      // On subsequent iterations reuse trackListOffset — the header tracks must not be pushed
+      // into scheduler.newsTracks again (that would cause duplicate news in the output).
+      if (iteration == 0) {
+        var protectFirstJingle = 'protectFirstJingle' in opts && opts.protectFirstJingle;
 
-      var protectFirstJingle = 'protectFirstJingle' in opts && opts.protectFirstJingle;
+        // check for news/jingle pattern at the beginning (up to 2 news tracks, 1 jingle between them)
+        if (tracks.length > 1 && ((tracks[0].type == NEWS) || (tracks[0].type == JINGLE && tracks[1] && tracks[1].type == NEWS))) {
+          var newsCount = 0;
+          var scanIdx = 0;
 
-      // check for news/jingle pattern at the beginning (up to 2 news tracks, 1 jingle between them)
-      if (tracks.length > 1 && ((tracks[0].type == NEWS) || (tracks[0].type == JINGLE && tracks[1] && tracks[1].type == NEWS))) {
-        var newsCount = 0;
-        var scanIdx = 0;
-
-        while (scanIdx < tracks.length && newsCount < 2) {
-          var scanTrack = tracks[scanIdx];
-          if (scanTrack.type == NEWS) {
-            this.scheduler.newsTracks.push(scanTrack);
-            newsCount++;
-            scanIdx++;
-            // Allow at most one jingle between two news tracks (only if another news track follows)
-            if (newsCount < 2 && scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
-              var nextNewsIdx = scanIdx + 1;
-              if (nextNewsIdx < tracks.length && tracks[nextNewsIdx].type == NEWS) {
-                this.scheduler.newsTracks.push(tracks[scanIdx]);
-                scanIdx++;
-              } else {
-                // Jingle is not between two news tracks — stop scanning
-                break;
+          while (scanIdx < tracks.length && newsCount < 2) {
+            var scanTrack = tracks[scanIdx];
+            if (scanTrack.type == NEWS) {
+              this.scheduler.newsTracks.push(scanTrack);
+              newsCount++;
+              scanIdx++;
+              // Allow at most one jingle between two news tracks (only if another news track follows)
+              if (newsCount < 2 && scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
+                var nextNewsIdx = scanIdx + 1;
+                if (nextNewsIdx < tracks.length && tracks[nextNewsIdx].type == NEWS) {
+                  this.scheduler.newsTracks.push(tracks[scanIdx]);
+                  scanIdx++;
+                } else {
+                  // Jingle is not between two news tracks — stop scanning
+                  break;
+                }
               }
+            } else if (scanTrack.type == JINGLE && newsCount == 0) {
+              // Leading jingle before first news
+              this.scheduler.newsTracks.push(scanTrack);
+              scanIdx++;
+            } else {
+              break;
             }
-          } else if (scanTrack.type == JINGLE && newsCount == 0) {
-            // Leading jingle before first news
-            this.scheduler.newsTracks.push(scanTrack);
+          }
+
+          // After the last news track, capture a trailing jingle as firstJingle if applicable
+          if (scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
+            if(firstJingleAfterNews) {
+              this.scheduler.newsTracks.push(tracks[scanIdx]);
+            }
+            if(protectFirstJingle) {
+              this.scheduler.firstJingle = tracks[scanIdx];
+            }
             scanIdx++;
-          } else {
-            break;
           }
-        }
 
-        // After the last news track, capture a trailing jingle as firstJingle if applicable
-        if (scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
-          if(firstJingleAfterNews) {
-            this.scheduler.newsTracks.push(tracks[scanIdx]);
-          }
-          if(protectFirstJingle) {
-            this.scheduler.firstJingle = tracks[scanIdx];
-          }
-          scanIdx++;
+          this.trackListOffset = scanIdx;
         }
-
-        start = scanIdx;
       }
+
+      var start = this.trackListOffset;
 
       var excludeFollowing = false;
 
