@@ -6,9 +6,12 @@
   "scripts": {
     "build": "cd src && npx tsc && npx prettier --write StationAdmin.js && node -e \"const fs=require('fs'),f='StationAdmin.js',h=fs.readFileSync('StationAdmin.ts','utf8').split('\\n').slice(0,2).join('\\n')+'\\n\\n';fs.writeFileSync(f,h+fs.readFileSync(f,'utf8'));\"",
     "test": "node test/StationAdminTests.js",
-    "build-and-test": "npm run build && npm test"
+    "build-and-test": "npm run build && npm test",
+    "push": "node tools/push.js",
+    "pull": "node tools/pull.js"
   },
   "dependencies": {
-    "alea": "^0.0.9"
+    "alea": "^0.0.9",
+    "dotenv": "^16.6.1"
   }
 }

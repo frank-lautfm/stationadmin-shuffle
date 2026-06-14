@@ -4,7 +4,9 @@ This file provides orientation for AI agents and automated tools working in this
 
 ## What This Repository Is
 
-Shuffle algorithm scripts for the [laut.fm](https://laut.fm) StationAdmin radio automation platform. The scripts run server-side on laut.fm and are not a web application or service — there is no server to start, no database, and no environment variables required.
+Shuffle algorithm scripts for the [laut.fm](https://laut.fm) StationAdmin radio automation platform. The scripts run server-side on laut.fm and are not a web application or service — there is no server to start, no database, and no environment variables required for running tests.
+
+Deploying scripts to laut.fm requires a `.env` file with a valid API token (see [Push (Deploy)](#push-deploy) below).
 
 ## Repository Layout
 
@@ -24,6 +26,17 @@ doc/          Developer documentation
 | [`src/StationAdmin.js`](src/StationAdmin.js) | Compiled output — **this is what gets deployed** | [`doc/StationAdmin.md`](doc/StationAdmin.md) |
 | [`src/BlockSelect_v1.js`](src/BlockSelect_v1.js) | Block-selection algorithm | [`doc/BlockSelect.md`](doc/BlockSelect.md) |
 | [`src/Resume.js`](src/Resume.js) | Resume/continuation algorithm | [`doc/Resume.md`](doc/Resume.md) |
+
+## Tools
+
+| Script | Purpose | Requires |
+|--------|---------|----------|
+| [`tools/push.js`](tools/push.js) | Upload a shuffle script to laut.fm via API | `.env` with `LAUTFM_TOKEN` |
+| [`tools/pull.js`](tools/pull.js) | Download a shuffle script from laut.fm to the archive directory | `.env` with `LAUTFM_TOKEN` |
+| [`tools/testplaylist.js`](tools/testplaylist.js) | Generate a test playlist from a local JSON file | — |
+| [`tools/readplaylisttracks.js`](tools/readplaylisttracks.js) | Read playlist tracks from laut.fm API | token as CLI arg |
+| [`tools/shuffleplaylist.js`](tools/shuffleplaylist.js) | Run the shuffle algorithm against a live playlist | token as CLI arg |
+| [`tools/24h.js`](tools/24h.js) | Fetch 24h play history from laut.fm API | token as CLI arg |
 
 ## Build
 
@@ -53,6 +66,58 @@ Each test scenario runs 5 times with different random seeds (via the [Alea](http
 ```bash
 # Build and test in one step
 npm run build-and-test
+```
+
+## Push (Deploy)
+
+Uploads a compiled script to the laut.fm automation algorithm API and saves a timestamped archive copy locally.
+
+Requires a `.env` file in the repo root (copy from [`.env.example`](.env.example) and fill in your token):
+
+```
+LAUTFM_TOKEN=your-token-here
+LAUTFM_ARCHIVE_DIR=C:/Scriptarchiv   # optional, default: C:/Scriptarchiv
+```
+
+```bash
+# Push StationAdmin.js as stationadmin_shuffle (default)
+npm run push
+
+# Push to a named slot using an alias
+node tools/push.js beta              # → stationadmin_beta
+node tools/push.js prev              # → stationadmin_previous
+node tools/push.js dev               # → stationadmin_develop
+
+# Push a different script using a literal algorithm name
+node tools/push.js resume src/Resume.js
+```
+
+**Alias map:**
+
+| Alias | API algorithm name |
+|---|---|
+| `release` | `stationadmin_shuffle` |
+| `beta` | `stationadmin_beta` |
+| `prev` | `stationadmin_previous` |
+| `dev` | `stationadmin_develop` |
+
+A timestamped archive copy is written to `LAUTFM_ARCHIVE_DIR` on every successful push:
+`<algorithmName>-<yyyy-MM-dd HH-mm>.js`
+
+## Pull (Download)
+
+Downloads the current script body for an algorithm slot from the laut.fm API and saves it to the archive directory as `<algorithmName>.js`. Uses the same `.env` and alias map as push.
+
+```bash
+# Download stationadmin_shuffle (default)
+npm run pull
+
+# Download a specific slot using an alias
+node tools/pull.js beta
+node tools/pull.js prev
+
+# Download using a literal algorithm name
+node tools/pull.js resume
 ```
 
 ## Making Changes
