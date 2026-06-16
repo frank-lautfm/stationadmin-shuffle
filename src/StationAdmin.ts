@@ -1,5 +1,5 @@
-// StationAdmin v4.2.1
-// 13.06.2026
+// StationAdmin v4.2.2
+// 16.06.2026
 
 // Type definitions
 
@@ -969,6 +969,35 @@ interface ShuffleOptions {
       return dateTagState == -1;
     }
 
+    /**
+     * Registers a track with any matching scheduling-rule selector tags.
+     * Returns true if the track should be skipped (excluded by a rule).
+     */
+    checkRuleTrack(track: Track, trackIdx: number): boolean {
+      if (!schedulingRulesEnabled) return false;
+      var skip = false;
+      for (var t = 0; t < track.tags.length; t++) {
+        if (track.tags[t] in this.scheduler.selectorTags) {
+          for (var r = 0; r < this.scheduler.selectorTags[track.tags[t]].length; r++) {
+            var rule = this.scheduler.selectorTags[track.tags[t]][r];
+            if (!('tracks' in rule)) {
+              rule.tracks = [];
+              rule.trackIdxs = [];
+            }
+            if ('exclude' in rule) skip = true;
+            if (!this.isExcludedByDateTag(track)) {
+              if (track.type === SONG) {
+                track.artistNormalized = this.normalizeArtist(track.artist);
+              }
+              rule.tracks!.push(track);
+              rule.trackIdxs!.push(trackIdx);
+            }
+          }
+        }
+      }
+      return skip;
+    }
+
     assignTrackScore(track: Track): void {
       // assign random score
       track.score = 100 + Math.floor((random() * 500));
@@ -1057,6 +1086,7 @@ interface ShuffleOptions {
           while (scanIdx < tracks.length && newsCount < 2) {
             var scanTrack = tracks[scanIdx];
             if (scanTrack.type == NEWS) {
+              this.checkRuleTrack(scanTrack, scanIdx);
               this.scheduler.newsTracks.push(scanTrack);
               newsCount++;
               scanIdx++;
@@ -1106,6 +1136,7 @@ interface ShuffleOptions {
           if(this.scheduler.newsTracks.length == 0) {
             this.scheduler.newsTracks.push(tracks[i]);
           }
+          this.checkRuleTrack(tracks[i], i);
           continue;
         }
         if ((tracks[i].title != null && tracks[i].title!.indexOf('START_AD_BREAK') > -1) ||
@@ -1132,29 +1163,8 @@ interface ShuffleOptions {
         tracks[i].use = false;
         tracks[i].groupTags = [];
 
-        if (schedulingRulesEnabled) {
-          var skip = false;
-          for (var t = 0; t < tracks[i].tags.length; t++) {
-            if (tracks[i].tags[t] in this.scheduler.selectorTags) {
-              for (var r = 0; r < this.scheduler.selectorTags[tracks[i].tags[t]].length; r++) {
-                var rule = this.scheduler.selectorTags[tracks[i].tags[t]][r];
-                if (!('tracks' in rule)) {
-                  rule.tracks = [];
-                  rule.trackIdxs = [];
-                }
-                if ('exclude' in rule) skip = true;
-                if (!this.isExcludedByDateTag(tracks[i])) {
-                  if(tracks[i].type === SONG) {
-                    tracks[i].artistNormalized = this.normalizeArtist(tracks[i].artist);
-                  }
-                  rule.tracks!.push(tracks[i]);
-                  rule.trackIdxs!.push(i);
-                }
-              }
-            }
-          }
-          if (skip) continue;
-        }
+        if (this.checkRuleTrack(tracks[i], i)) continue;
+        
         if (tracks[i].type == JINGLE) {
           if (tracks[i].id == 8664493) {
             excludeFollowing = true;
