@@ -1,5 +1,5 @@
-// StationAdmin v4.2.2
-// 16.06.2026
+// StationAdmin v4.3.0
+// 20.07.2026
 
 // Type definitions
 
@@ -71,6 +71,7 @@ interface ScheduledRule {
   tag: string;
   selection: string;
   trackType?: string;
+  version?: number;
   index?: number;
   exclude?: boolean;
   interval?: number;
@@ -980,6 +981,10 @@ interface ShuffleOptions {
         if (track.tags[t] in this.scheduler.selectorTags) {
           for (var r = 0; r < this.scheduler.selectorTags[track.tags[t]].length; r++) {
             var rule = this.scheduler.selectorTags[track.tags[t]][r];
+            if ((rule.version ?? 0) >= 2 && 'trackType' in rule && track.type !== rule.trackType) {
+              // Type mismatch on a version-2+ rule - treat as if the tag were not present
+              continue;
+            }
             if (!('tracks' in rule)) {
               rule.tracks = [];
               rule.trackIdxs = [];

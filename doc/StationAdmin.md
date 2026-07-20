@@ -1,6 +1,6 @@
 # StationAdmin Shuffle Algorithm Documentation
 
-**Version:** 4.2.0
+**Version:** 4.3.0
 **Source:** [`src/StationAdmin.ts`](../src/StationAdmin.ts)
 
 ## Overview
@@ -330,7 +330,8 @@ Scheduling rules insert specific tracks at defined times within the playlist.
   index: Number,           // (optional) 1-based track index for 'index' mode
   exclude: Boolean,        // If true, matching tracks are excluded from the regular pool
   introJingleId: Number,   // (optional) ID of a jingle to play before the scheduled track
-  trackType: String,       // (optional) Expected track type (informational)
+  trackType: String,       // (optional) Expected track type — enforced when version >= 2 (see below)
+  version: Number,         // (optional) Rule schema version — enables trackType enforcement when >= 2
   groupName: String,       // (optional) Group name for coordination
   minDistance: Number,     // (optional) Minimum minutes between applications
   lastPlay: Number,        // Runtime: timestamp of last application
@@ -341,6 +342,15 @@ Scheduling rules insert specific tracks at defined times within the playlist.
   timeTracks: Array<Track> // For 'time' selection mode: hour → track map
 }
 ```
+
+**`version` and `trackType`:**
+
+`trackType` was historically informational only — it had no effect on track selection. Starting with `version: 2`, `trackType` is actively enforced: a tagged track whose `type` does not match `trackType` is treated as if the selector tag were not present on it at all. It is **not** added to the rule's candidate list (`tracks`/`trackIdxs`), and it is **not** removed from the regular shuffle pool even if `exclude: true`.
+
+| `version` | `trackType` behavior |
+|-----------|----------------------|
+| *(absent)* or `< 2` | Ignored — legacy behavior; any tagged track is treated as a candidate regardless of its type |
+| `>= 2` | Enforced — only tagged tracks whose `type` equals `trackType` become candidates; mismatched tracks are left untouched in the regular pool |
 
 **Selection Modes:**
 

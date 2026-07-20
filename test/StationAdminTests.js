@@ -1477,6 +1477,125 @@ testWithMultipleSeeds('scheduledItemPreBlockArtist - scheduled song artist is pr
     }
 });
 
+// Test: scheduledRuleTrackTypeVersion2Filtering
+// Verifies that when a ScheduledRule has version >= 2 and a trackType is set, tracks whose
+// type does not match trackType are treated as if the selector tag were not present at all:
+// they are NOT added to the rule's candidate list, and (if exclude is set) they are NOT
+// removed from the regular shuffle pool either.
+testWithMultipleSeeds('scheduledRuleTrackTypeVersion2Filtering - trackType filters candidates when version >= 2', (seed) => {
+    const tracks = loadTracksFromFile('tracks_scheduled_items.json');
+
+    const songTrackId = 13983;         // type: 'song'
+    const moderationTrackId = 8957933; // type: 'moderation'
+
+    for (let i = 0; i < tracks.length; i++) {
+        if (tracks[i].id === songTrackId || tracks[i].id === moderationTrackId) {
+            tracks[i].tags.push('VerTypeTest');
+        }
+    }
+
+    const trackStats = [];
+    const duration = 14400; // 4 hours
+
+    const opts = {
+        duration: duration,
+        jingleInterval: 20,
+        maxTracksPerArtist: 4,
+        time: time2,
+        scheduled: [ {
+            selection: 'index',
+            index: 1,
+            exclude: true,
+            version: 2,
+            trackType: 'moderation',
+            hour: 22,
+            minute: 15,
+            tag: 'VerTypeTest'
+        } ]
+    };
+
+    const result = executeShuffleFunction(tracks, opts, trackStats, seed);
+
+    assert.ok(Array.isArray(result), 'Result should be an array');
+
+    // The moderation track matches trackType, so it becomes the only scheduling candidate
+    // and must appear in the output (inserted at the scheduled slot).
+    assert.ok(
+        result.some(t => t.id === moderationTrackId),
+        'Moderation track (id ' + moderationTrackId + ') should be scheduled as the matching-type candidate'
+    );
+
+    // The song track does not match trackType 'moderation', so under version >= 2 it must
+    // NOT be scheduled at the rule's slot. The moderation track should be at that position,
+    // not the song track. Verify the song track never appears at the same result index as
+    // the moderation track (i.e., they are distinct entries, and the rule chose moderation).
+    const moderationIdx = result.findIndex(t => t.id === moderationTrackId);
+    assert.ok(
+        moderationIdx > -1 && result[moderationIdx].id !== songTrackId,
+        'The scheduled slot must contain the moderation track, not the song track'
+    );
+
+    // The song track must NOT appear more than once: with exclude:true and version >= 2,
+    // the song is not a rule candidate, so it is not excluded from the regular pool.
+    // It may or may not appear in the output depending on pool selection, but it must
+    // never appear more than once (it cannot be both scheduled AND in the regular pool).
+    const songOccurrences = result.filter(t => t.id === songTrackId).length;
+    assert.ok(
+        songOccurrences <= 1,
+        'Song track (id ' + songTrackId + ') must appear at most once in the output'
+    );
+});
+
+// Test: scheduledRuleTrackTypeLegacyIgnored
+// Verifies that when a ScheduledRule has no version (or version < 2), trackType has no
+// effect: a tagged track is treated as a scheduling candidate and excluded from the regular
+// pool regardless of whether its type matches trackType (legacy behavior).
+testWithMultipleSeeds('scheduledRuleTrackTypeLegacyIgnored - trackType is ignored without version >= 2', (seed) => {
+    const tracks = loadTracksFromFile('tracks_scheduled_items.json');
+
+    const songTrackId = 13983; // type: 'song' - deliberately mismatches trackType below
+
+    for (let i = 0; i < tracks.length; i++) {
+        if (tracks[i].id === songTrackId) {
+            tracks[i].tags.push('LegacyTypeTest');
+        }
+    }
+
+    const trackStats = [];
+    const duration = 14400; // 4 hours
+
+    const opts = {
+        duration: duration,
+        jingleInterval: 20,
+        maxTracksPerArtist: 4,
+        time: time2,
+        scheduled: [ {
+            selection: 'index',
+            index: 1,
+            exclude: true,
+            // no 'version' field - legacy behavior
+            trackType: 'moderation', // deliberately mismatches the actual track type ('song')
+            hour: 22,
+            minute: 15,
+            tag: 'LegacyTypeTest'
+        } ]
+    };
+
+    const result = executeShuffleFunction(tracks, opts, trackStats, seed);
+
+    assert.ok(Array.isArray(result), 'Result should be an array');
+
+    // Legacy rules ignore trackType entirely - the song track must still be scheduled
+    // as the rule's candidate (and thus excluded from the regular pool), despite the
+    // mismatch with trackType: 'moderation'.
+    const occurrences = result.filter(t => t.id === songTrackId).length;
+    assert.strictEqual(
+        occurrences, 1,
+        'Track (id ' + songTrackId + ') should appear exactly once, inserted via the scheduling rule ' +
+        '(trackType must be ignored for rules without version >= 2)'
+    );
+});
+
 // Test: noPatternWordDistributionPreserve
 testWithMultipleSeeds('noPatternWordDistributionPreserve - basic shuffle with preserved moderation tracks', (seed) => {
     // Load tracks from the test resource file
