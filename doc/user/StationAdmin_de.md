@@ -1,7 +1,7 @@
 # Station Admin Shuffle – Benutzerhandbuch
 
-**Version:** 4.1.0  
-**Sprache:** Deutsch  
+**Version:** 4.4.0
+**Sprache:** Deutsch
 **Zielgruppe:** Radiobetreiber ohne Programmierkenntnisse
 
 ---
@@ -128,11 +128,11 @@ Einfache Bezeichnungen wie `rock`, `pop`, `slow`, `upbeat`. Du kannst ihnen Gewi
 
 ### Datums-Tags – Saisonale Titel
 
-Mit Datums-Tags kannst du Titel auf bestimmte Zeiträume beschränken. Das ist ideal für Weihnachtsmusik, Geburtstagssongs oder saisonale Aktionen.
+Mit Datums-Tags kannst du Titel auf bestimmte Zeiträume oder Wochentage beschränken. Das ist ideal für Weihnachtsmusik, Geburtstagssongs, saisonale Aktionen oder tagesbezogene Inhalte.
 
-**Format:** `@TT.MM.` oder `@TT.MM. - TT.MM.`
+**Datums-Format:** `@TT.MM.` oder `@TT.MM. - TT.MM.`
 
-**Beispiele:**
+**Beispiele für Datums-Tags:**
 
 | Tag | Bedeutung |
 |-----|-----------|
@@ -140,7 +140,23 @@ Mit Datums-Tags kannst du Titel auf bestimmte Zeiträume beschränken. Das ist i
 | `@01.12. - 24.12.` | Vom 1. bis 24. Dezember |
 | `@15.11. - 15.01.` | Vom 15. November bis 15. Januar (über den Jahreswechsel) |
 
-Titel mit einem Datums-Tag, der **nicht** dem aktuellen Datum entspricht, werden automatisch aus der Playlist ausgeschlossen.
+**Wochentags-Tags:** `@Montag`, `@Dienstag`, `@Mittwoch`, `@Donnerstag`, `@Freitag`, `@Samstag`, `@Sonntag`
+
+Die Wochentags-Namen werden **groß-/kleinschreibungsunabhängig** erkannt. Es ist דarüber hinaus möglich, einen Suffix (z. B. einen beschreibenden Text) hinter dem Wochentag anzuhängen, solange dieser durch ein Leerzeichen oder Trennzeichen abgetrennt ist. Titel, deren Wochentags-Tag **nicht** dem aktuellen Wochentag entspricht, werden automatisch aus der Playlist ausgeschlossen.
+
+**Beispiele für Wochentags-Tags:**
+
+| Tag | Bedeutung |
+|-----|-----------|
+| `@Montag` | Nur montags |
+| `@montag` | Nur montags (Groß-/Kleinschreibung wird ignoriert) |
+| `@MONTAG` | Nur montags (Groß-/Kleinschreibung wird ignoriert) |
+| `@Montag - der Wochenanfang` | Nur montags (Suffix ist erlaubt) |
+| `@Freitag` | Nur freitags |
+
+**Hinweis:** Ein Tag wie `@Montagsshow` wird NICHT als Wochentags-Tag erkannt, da „Montag“ hier direkt mit weiteren Buchstaben verbunden ist (keine Wortgrenze). Der Titel wäre dann nicht von der Wochentags-Filterung betroffen.
+
+Titel mit einem Datums- oder Wochentags-Tag, der **nicht** dem aktuellen Datum/Wochentag entspricht, werden automatisch aus der Playlist ausgeschlossen.
 
 ### Gruppen-Tags – Ähnliche Titel trennen
 

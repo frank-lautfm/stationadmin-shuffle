@@ -982,6 +982,81 @@ testWithMultipleSeeds('dateFilter - basic shuffle with date filter tags', (seed)
 
 });
 
+// Test: weekdayFilter
+// February 9, 2026 is a Monday (Date.getDay() returns 1)
+testWithMultipleSeeds('weekdayFilter - basic shuffle with German weekday date tags', (seed) => {
+    // Load tracks from the test resource file
+    const tracks = loadTracksFromFile('tracks_plain.json');
+
+    // Tag groups: Montag (Monday - should match), Dienstag (Tuesday - should NOT match),
+    // case variations, and suffix text
+    const tags = [
+        "@Montag",
+        "@Dienstag",
+        "@montag",
+        "@MONTAG",
+        "@Montag - der Wochenanfang",
+        "@Sonntag"
+    ];
+    var t = 0;
+    for(var i = 0; i < tracks.length; i++) {
+        tracks[i].tags.push(tags[t]);
+        t = (t + 1) % tags.length;
+    }
+    
+    // Empty array for track stats (no previous plays)
+    const trackStats = [];
+
+    const duration = 14400;
+    const jingleInterval = 20; // 20 minutes
+    
+    // Options with only duration set to 7200 seconds (2 hours)
+    const opts = {
+        duration: duration,
+        jingleInterval : jingleInterval,
+        maxTracksPerArtist : 2,
+        time: time,
+    };
+    
+    // Execute the shuffle function with a seed for reproducible results
+    const result = executeShuffleFunction(tracks, opts, trackStats, seed);
+
+    var t1 = countByTag(result, tags[0]); // @Montag - should pass (Monday matches Monday)
+    var t2 = countByTag(result, tags[1]); // @Dienstag - should NOT pass (Tuesday doesn't match Monday)
+    var t3 = countByTag(result, tags[2]); // @montag (lowercase) - should pass
+    var t4 = countByTag(result, tags[3]); // @MONTAG (uppercase) - should pass
+    var t5 = countByTag(result, tags[4]); // @Montag - der Wochenanfang - should pass (suffix with separator)
+    var t6 = countByTag(result, tags[5]); // @Sonntag - should NOT pass (Sunday doesn't match Monday)
+
+    assert.ok(t1 > 0, tags[0] + " should pass (Monday matches Monday)");
+    assert.ok(t2 == 0, tags[1] + " should not pass (Tuesday does not match Monday)");
+    assert.ok(t3 > 0, tags[2] + " should pass (case-insensitive)");
+    assert.ok(t4 > 0, tags[3] + " should pass (case-insensitive)");
+    assert.ok(t5 > 0, tags[4] + " should pass (suffix text with separator is allowed)");
+    assert.ok(t6 == 0, tags[5] + " should not pass (Sunday does not match Monday)");
+
+});
+
+// Test: weekdayFilterWordBoundary
+// Test that concatenated weekday names (like @Montagsshow) are NOT matched
+// February 9, 2026 is a Monday
+// Test the regex behavior directly without depending on shuffle randomness
+test('weekdayFilterWordBoundary - concatenated weekday names should not match', () => {
+    // Test the weekday regex directly
+    const weekdayRegex = /^@(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/i;
+    
+    // Valid weekday tags that should match
+    assert.ok(weekdayRegex.test('@Montag'), "@Montag should match");
+    assert.ok(weekdayRegex.test('@montag'), "@montag should match (case-insensitive)");
+    assert.ok(weekdayRegex.test('@MONTAG'), "@MONTAG should match (case-insensitive)");
+    assert.ok(weekdayRegex.test('@Montag - der Wochenanfang'), "@Montag - der Wochenanfang should match");
+    assert.ok(weekdayRegex.test('@Montag-'), "@Montag- should match");
+    
+    // Invalid concatenated tags that should NOT match
+    assert.ok(!weekdayRegex.test('@Montagsshow'), "@Montagsshow should NOT match (no word boundary)");
+    assert.ok(!weekdayRegex.test('@MontagShow'), "@MontagShow should NOT match (no word boundary)");
+});
+
 
 // Test: noPatternNews
 testWithMultipleSeeds('noPatternNews - basic shuffle with news', (seed) => {
@@ -1763,6 +1838,28 @@ testWithMultipleSeeds('noPatternNewsPlusJingle - shuffle with news plus jingle',
         }
     }
 
+});
+
+testWithMultipleSeeds('news opener skips date-excluded jingles', (seed) => {
+    const tracks = [
+        { id: 1, title: 'News', artist: 'laut.fm', type: 'news', duration: 120, tags: [] },
+        { id: 11, title: 'JingleMo', artist: 'Station', type: 'jingle', duration: 10, tags: ['@montag'] },
+        { id: 12, title: 'JingleDi', artist: 'Station', type: 'jingle', duration: 10, tags: ['@dienstag'] },
+        { id: 13, title: 'JingleMi', artist: 'Station', type: 'jingle', duration: 10, tags: ['@mittwoch'] },
+        { id: 20, title: 'Long Song', artist: 'Artist', type: 'song', duration: 4000, tags: [] }
+    ];
+    const opts = {
+        duration: 3600,
+        jingleInterval: 20,
+        maxTracksPerArtist: 1,
+        time: '2026-02-11T20:57:11+01:00'
+    };
+
+    const result = executeShuffleFunction(tracks, opts, [], seed);
+
+    assert.strictEqual(result[0].id, 1, 'First track should be news');
+    assert.strictEqual(result[1].id, 13, 'The matching Wednesday jingle should be the opener');
+    assert.ok(!result.some(track => track.id == 11 || track.id == 12), 'Date-excluded jingles must not be scheduled');
 });
 
 // Test: noPatternNewsPlusJingleNotFullHour

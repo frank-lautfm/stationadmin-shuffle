@@ -1,6 +1,6 @@
 # StationAdmin Shuffle Algorithm Documentation
 
-**Version:** 4.3.0
+**Version:** 4.4.0
 **Source:** [`src/StationAdmin.ts`](../src/StationAdmin.ts)
 
 ## Overview
@@ -86,7 +86,21 @@ Restrict a track to a specific date or date range. Tracks outside the current da
 @15.11. - 15.01.  → November 15th through January 15th (wraps year boundary)
 ```
 
-Multiple date tags on one track: if any tag actively excludes the track (state = -1), the track is excluded. A date tag that matches (state = 1) overrides a neutral state (0) but not an exclusion.
+**Weekday Tags** — German weekday names `@Montag`, `@Dienstag`, `@Mittwoch`, `@Donnerstag`, `@Freitag`, `@Samstag`, `@Sonntag`
+
+Restrict a track to a specific day of the week. The weekday name is matched case-insensitively with a word boundary, allowing suffix text after separators but rejecting concatenated words. Tracks outside the current weekday receive score `999999` and are excluded.
+
+```
+@Montag           → only on Mondays
+@montag           → only on Mondays (case-insensitive)
+@Montag - der Wochenanfang → only on Mondays (suffix text allowed)
+@Dienstag         → only on Tuesdays
+@Freitag         → only on Fridays
+```
+
+Note: `@Montagsshow` does NOT match as the word boundary requirement prevents matching when the weekday name is immediately followed by more word characters.
+
+Multiple date/weekday tags on one track: if any tag actively excludes the track (state = -1), the track is excluded. A date tag that matches (state = 1) overrides a neutral state (0) but not an exclusion.
 
 **Group Tags** — start with `=` (e.g., `=ballad`, `=christmas`)
 

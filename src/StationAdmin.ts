@@ -1,5 +1,5 @@
-// StationAdmin v4.3.0
-// 20.07.2026
+// StationAdmin v4.4.0
+// 16.09.2026
 
 // Type definitions
 
@@ -928,6 +928,19 @@ interface ShuffleOptions {
       let parts: RegExpExecArray | null = /^@(\d{1,2})\.(\d{1,2})\.\s*-\s*(\d{1,2})\.(\d{1,2})\./.exec(tag);
       if (!parts) parts = /^@(\d{1,2})\.(\d{1,2})\./.exec(tag);
       if (!parts) {
+        // Check for weekday tags in German (case-insensitive with word boundary)
+        const weekdayMatch = /^@(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/i.exec(tag);
+        if (weekdayMatch) {
+          const weekdayNames: { [key: string]: number } = {
+            sonntag: 0, montag: 1, dienstag: 2, mittwoch: 3,
+            donnerstag: 4, freitag: 5, samstag: 6
+          };
+          const matchedDay = weekdayMatch[1].toLowerCase();
+          const currentDay = new Date(startTime).getDay();
+          const result = (currentDay === weekdayNames[matchedDay]) ? 1 : -1;
+          this.dateTagCache[tag] = result;
+          return result;
+        }
         this.dateTagCache[tag] = 0;
         return previousState;
       }
@@ -1083,12 +1096,30 @@ interface ShuffleOptions {
       if (iteration == 0) {
         var protectFirstJingle = 'protectFirstJingle' in opts && opts.protectFirstJingle;
 
-        // check for news/jingle pattern at the beginning (up to 2 news tracks, 1 jingle between them)
-        if (tracks.length > 1 && ((tracks[0].type == NEWS) || (tracks[0].type == JINGLE && tracks[1] && tracks[1].type == NEWS))) {
+        // Check for a news/jingle pattern at the beginning (up to 2 news tracks,
+        // 1 eligible jingle between them). Date-excluded jingles are transparent:
+        // they neither participate in the pattern nor prevent a later eligible
+        // jingle from becoming the opener after the news.
+        var firstHeaderIdx = 0;
+        while (firstHeaderIdx < tracks.length && tracks[firstHeaderIdx].type == JINGLE && this.isExcludedByDateTag(tracks[firstHeaderIdx])) {
+          firstHeaderIdx++;
+        }
+        var afterLeadingJingleIdx = firstHeaderIdx + 1;
+        while (afterLeadingJingleIdx < tracks.length && tracks[afterLeadingJingleIdx].type == JINGLE && this.isExcludedByDateTag(tracks[afterLeadingJingleIdx])) {
+          afterLeadingJingleIdx++;
+        }
+        var startsWithNewsHeader = firstHeaderIdx < tracks.length && tracks[firstHeaderIdx].type == NEWS;
+        var startsWithLeadingJingle = firstHeaderIdx < tracks.length && tracks[firstHeaderIdx].type == JINGLE
+          && afterLeadingJingleIdx < tracks.length && tracks[afterLeadingJingleIdx].type == NEWS;
+        if (startsWithNewsHeader || startsWithLeadingJingle) {
           var newsCount = 0;
           var scanIdx = 0;
 
           while (scanIdx < tracks.length && newsCount < 2) {
+            while (scanIdx < tracks.length && tracks[scanIdx].type == JINGLE && this.isExcludedByDateTag(tracks[scanIdx])) {
+              scanIdx++;
+            }
+            if (scanIdx >= tracks.length) break;
             var scanTrack = tracks[scanIdx];
             if (scanTrack.type == NEWS) {
               this.checkRuleTrack(scanTrack, scanIdx);
@@ -1096,11 +1127,17 @@ interface ShuffleOptions {
               newsCount++;
               scanIdx++;
               // Allow at most one jingle between two news tracks (only if another news track follows)
+              while (scanIdx < tracks.length && tracks[scanIdx].type == JINGLE && this.isExcludedByDateTag(tracks[scanIdx])) {
+                scanIdx++;
+              }
               if (newsCount < 2 && scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
                 var nextNewsIdx = scanIdx + 1;
+                while (nextNewsIdx < tracks.length && tracks[nextNewsIdx].type == JINGLE && this.isExcludedByDateTag(tracks[nextNewsIdx])) {
+                  nextNewsIdx++;
+                }
                 if (nextNewsIdx < tracks.length && tracks[nextNewsIdx].type == NEWS) {
                   this.scheduler.newsTracks.push(tracks[scanIdx]);
-                  scanIdx++;
+                  scanIdx = nextNewsIdx;
                 } else {
                   // Jingle is not between two news tracks — stop scanning
                   break;
@@ -1116,6 +1153,9 @@ interface ShuffleOptions {
           }
 
           // After the last news track, capture a trailing jingle as firstJingle if applicable
+          while (scanIdx < tracks.length && tracks[scanIdx].type == JINGLE && this.isExcludedByDateTag(tracks[scanIdx])) {
+            scanIdx++;
+          }
           if (scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
             if(firstJingleAfterNews) {
               this.scheduler.newsTracks.push(tracks[scanIdx]);

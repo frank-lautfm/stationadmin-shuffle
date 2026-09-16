@@ -1,5 +1,5 @@
-// StationAdmin v4.3.0
-// 20.07.2026
+// StationAdmin v4.4.0
+// 16.09.2026
 
 (function (tracks, opts, trackStats) {
  const SONG = "song";
@@ -710,6 +710,23 @@
    let parts = /^@(\d{1,2})\.(\d{1,2})\.\s*-\s*(\d{1,2})\.(\d{1,2})\./.exec(tag);
    if (!parts) parts = /^@(\d{1,2})\.(\d{1,2})\./.exec(tag);
    if (!parts) {
+    const weekdayMatch = /^@(montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/i.exec(tag);
+    if (weekdayMatch) {
+     const weekdayNames = {
+      sonntag: 0,
+      montag: 1,
+      dienstag: 2,
+      mittwoch: 3,
+      donnerstag: 4,
+      freitag: 5,
+      samstag: 6
+     };
+     const matchedDay = weekdayMatch[1].toLowerCase();
+     const currentDay = new Date(startTime).getDay();
+     const result = currentDay === weekdayNames[matchedDay] ? 1 : -1;
+     this.dateTagCache[tag] = result;
+     return result;
+    }
     this.dateTagCache[tag] = 0;
     return previousState;
    }
@@ -829,24 +846,57 @@
    var tracksDuration = 0;
    if (iteration == 0) {
     var protectFirstJingle = "protectFirstJingle" in opts && opts.protectFirstJingle;
-    if (
-     tracks.length > 1 &&
-     (tracks[0].type == NEWS || (tracks[0].type == JINGLE && tracks[1] && tracks[1].type == NEWS))
+    var firstHeaderIdx = 0;
+    while (
+     firstHeaderIdx < tracks.length &&
+     tracks[firstHeaderIdx].type == JINGLE &&
+     this.isExcludedByDateTag(tracks[firstHeaderIdx])
     ) {
+     firstHeaderIdx++;
+    }
+    var afterLeadingJingleIdx = firstHeaderIdx + 1;
+    while (
+     afterLeadingJingleIdx < tracks.length &&
+     tracks[afterLeadingJingleIdx].type == JINGLE &&
+     this.isExcludedByDateTag(tracks[afterLeadingJingleIdx])
+    ) {
+     afterLeadingJingleIdx++;
+    }
+    var startsWithNewsHeader = firstHeaderIdx < tracks.length && tracks[firstHeaderIdx].type == NEWS;
+    var startsWithLeadingJingle =
+     firstHeaderIdx < tracks.length &&
+     tracks[firstHeaderIdx].type == JINGLE &&
+     afterLeadingJingleIdx < tracks.length &&
+     tracks[afterLeadingJingleIdx].type == NEWS;
+    if (startsWithNewsHeader || startsWithLeadingJingle) {
      var newsCount = 0;
      var scanIdx = 0;
      while (scanIdx < tracks.length && newsCount < 2) {
+      while (scanIdx < tracks.length && tracks[scanIdx].type == JINGLE && this.isExcludedByDateTag(tracks[scanIdx])) {
+       scanIdx++;
+      }
+      if (scanIdx >= tracks.length) break;
       var scanTrack = tracks[scanIdx];
       if (scanTrack.type == NEWS) {
        this.checkRuleTrack(scanTrack, scanIdx);
        this.scheduler.newsTracks.push(scanTrack);
        newsCount++;
        scanIdx++;
+       while (scanIdx < tracks.length && tracks[scanIdx].type == JINGLE && this.isExcludedByDateTag(tracks[scanIdx])) {
+        scanIdx++;
+       }
        if (newsCount < 2 && scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
         var nextNewsIdx = scanIdx + 1;
+        while (
+         nextNewsIdx < tracks.length &&
+         tracks[nextNewsIdx].type == JINGLE &&
+         this.isExcludedByDateTag(tracks[nextNewsIdx])
+        ) {
+         nextNewsIdx++;
+        }
         if (nextNewsIdx < tracks.length && tracks[nextNewsIdx].type == NEWS) {
          this.scheduler.newsTracks.push(tracks[scanIdx]);
-         scanIdx++;
+         scanIdx = nextNewsIdx;
         } else {
          break;
         }
@@ -857,6 +907,9 @@
       } else {
        break;
       }
+     }
+     while (scanIdx < tracks.length && tracks[scanIdx].type == JINGLE && this.isExcludedByDateTag(tracks[scanIdx])) {
+      scanIdx++;
      }
      if (scanIdx < tracks.length && tracks[scanIdx].type == JINGLE) {
       if (firstJingleAfterNews) {
