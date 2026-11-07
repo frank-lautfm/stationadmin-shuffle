@@ -100,7 +100,34 @@ Restrict a track to a specific day of the week. The weekday name is matched case
 
 Note: `@Montagsshow` does NOT match as the word boundary requirement prevents matching when the weekday name is immediately followed by more word characters.
 
-Multiple date/weekday tags on one track: if any tag actively excludes the track (state = -1), the track is excluded. A date tag that matches (state = 1) overrides a neutral state (0) but not an exclusion.
+**Holiday Tags** — `@<Holiday>` with optional day offsets: `@Ostern`, `@Pfingsten`, `@Weihnachten`, `@Nikolaus`, `@Christi Himmelfahrt`, `@Fronleichnam`, `@Rosenmontag`, `@Silvester`, `@Allerheiligen`, `@Halloween`, `@Muttertag`
+
+A holiday tag refers to a single day, calculated for the current year (and the neighbouring years, so ranges crossing New Year work). Matching is case-insensitive with a word boundary, and suffix text may follow. The range can be extended with `-N` (N days before) and/or `+M` (M days after); both are optional and spaces around them are allowed.
+
+| Holiday | Date |
+|---------|------|
+| Ostern | Easter Sunday |
+| Rosenmontag | Easter − 48 days |
+| Christi Himmelfahrt | Easter + 39 days |
+| Pfingsten | Whit Sunday (Easter + 49 days) |
+| Fronleichnam | Easter + 60 days |
+| Muttertag | 2nd Sunday in May |
+| Halloween | October 31 |
+| Allerheiligen | November 1 |
+| Nikolaus | December 6 |
+| Weihnachten | December 25 |
+| Silvester | December 31 |
+
+```
+@Ostern             → Easter Sunday only
+@Ostern +5          → Easter Sunday through 5 days after
+@Ostern -5          → 5 days before through Easter Sunday
+@Ostern -10 + 5     → 10 days before through 5 days after Easter Sunday
+@Weihnachten -3 Weihnachtsmarkt → December 22nd to 25th (suffix text allowed)
+@Silvester +5       → December 31st through January 5th
+```
+
+Multiple date/weekday/holiday tags on one track: if any tag actively excludes the track (state = -1), the track is excluded. A date tag that matches (state = 1) overrides a neutral state (0) but not an exclusion.
 
 **Group Tags** — start with `=` (e.g., `=ballad`, `=christmas`)
 

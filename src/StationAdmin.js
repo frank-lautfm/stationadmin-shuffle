@@ -1,5 +1,5 @@
-// StationAdmin v4.4.0
-// 16.09.2026
+// StationAdmin v4.5.0
+// 07.11.2026
 
 (function (tracks, opts, trackStats) {
  const SONG = "song";
@@ -647,6 +647,7 @@
    this.lastPlays = {};
    this.trackListOffset = 0;
    this.dateTagCache = {};
+   this.holidayCache = {};
    this.preservedTracks = [];
    this.hasPreservedTracks = false;
    this.hasLinkedTracks = false;
@@ -702,6 +703,43 @@
    var stripped = name.replace(/\W/g, "");
    return stripped.length > 3 ? stripped : name;
   }
+  getHolidays(year) {
+   if (this.holidayCache[year] !== undefined) {
+    return this.holidayCache[year];
+   }
+   const a = year % 19;
+   const b = Math.floor(year / 100);
+   const c = year % 100;
+   const d = Math.floor(b / 4);
+   const e = b % 4;
+   const f = Math.floor((b + 8) / 25);
+   const g = Math.floor((b - f + 1) / 3);
+   const h = (19 * a + b - d - g + 15) % 30;
+   const i = Math.floor(c / 4);
+   const k = c % 4;
+   const l = (32 + 2 * e + 2 * i - h - k) % 7;
+   const m = Math.floor((a + 11 * h + 22 * l) / 451);
+   const month = Math.floor((h + l - 7 * m + 114) / 31);
+   const day = ((h + l - 7 * m + 114) % 31) + 1;
+   const easter = (offset) => new Date(year, month - 1, day + offset);
+   const may1Weekday = new Date(year, 4, 1).getDay();
+   const motherDay = 1 + ((7 - may1Weekday) % 7) + 7;
+   const holidays = {
+    ostern: easter(0),
+    rosenmontag: easter(-48),
+    "christi himmelfahrt": easter(39),
+    pfingsten: easter(49),
+    fronleichnam: easter(60),
+    muttertag: new Date(year, 4, motherDay),
+    halloween: new Date(year, 9, 31),
+    allerheiligen: new Date(year, 10, 1),
+    nikolaus: new Date(year, 11, 6),
+    weihnachten: new Date(year, 11, 25),
+    silvester: new Date(year, 11, 31)
+   };
+   this.holidayCache[year] = holidays;
+   return holidays;
+  }
   checkDateTag(tag, previousState) {
    if (previousState == 1 || !tag.startsWith("@")) return previousState;
    if (this.dateTagCache[tag] !== undefined) {
@@ -726,6 +764,41 @@
      const result = currentDay === weekdayNames[matchedDay] ? 1 : -1;
      this.dateTagCache[tag] = result;
      return result;
+    }
+    const holidayMatch =
+     /^@(christi\s+himmelfahrt|ostern|pfingsten|weihnachten|nikolaus|fronleichnam|rosenmontag|silvester|allerheiligen|halloween|muttertag)\b((?:\s*[-+]\s*\d+)*)/i.exec(
+      tag
+     );
+    if (holidayMatch) {
+     const holidayName = holidayMatch[1].toLowerCase().replace(/\s+/g, " ");
+     let daysBefore = 0,
+      daysAfter = 0;
+     const offsetRegex = /([-+])\s*(\d+)/g;
+     let offset;
+     while ((offset = offsetRegex.exec(holidayMatch[2])) !== null) {
+      if (offset[1] == "-") daysBefore = +offset[2];
+      else daysAfter = +offset[2];
+     }
+     const nowTs = startTime;
+     const baseYear = new Date(startTime).getFullYear();
+     let inHolidayRange = false;
+     for (let y = baseYear - 1; y <= baseYear + 1 && !inHolidayRange; y++) {
+      const day = this.getHolidays(y)[holidayName];
+      const rangeStart = new Date(day.getFullYear(), day.getMonth(), day.getDate() - daysBefore, 0, 0, 0, 0).getTime();
+      const rangeEnd = new Date(
+       day.getFullYear(),
+       day.getMonth(),
+       day.getDate() + daysAfter,
+       23,
+       59,
+       59,
+       999
+      ).getTime();
+      inHolidayRange = nowTs >= rangeStart && nowTs <= rangeEnd;
+     }
+     const holidayResult = inHolidayRange ? 1 : -1;
+     this.dateTagCache[tag] = holidayResult;
+     return holidayResult;
     }
     this.dateTagCache[tag] = 0;
     return previousState;

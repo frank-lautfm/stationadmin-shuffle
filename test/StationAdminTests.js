@@ -1057,6 +1057,73 @@ test('weekdayFilterWordBoundary - concatenated weekday names should not match', 
     assert.ok(!weekdayRegex.test('@MontagShow'), "@MontagShow should NOT match (no word boundary)");
 });
 
+// Test: holidayFilter
+// Runs a shuffle at the given time with half of the tracks carrying the holiday tag
+// and returns whether tracks with that tag were included.
+function holidayTagPasses(tag, atTime, seed) {
+    const tracks = loadTracksFromFile('tracks_plain.json');
+    for (var i = 0; i < tracks.length; i++) {
+        // drop date tags from the fixture so they cannot interfere with the tag under test
+        tracks[i].tags = tracks[i].tags.filter(tg => !tg.startsWith("@"));
+        if (i % 2 == 0) tracks[i].tags.push(tag);
+    }
+    const opts = {
+        duration: 7200,
+        jingleInterval: 20,
+        maxTracksPerArtist: 2,
+        time: atTime,
+    };
+    const result = executeShuffleFunction(tracks, opts, [], seed);
+    return countByTag(result, tag) > 0;
+}
+
+testWithMultipleSeeds('holidayFilter - German holiday tags with offsets', (seed) => {
+    const cases = [
+        // [tag, time, expected]
+        // Easter 2026: April 5
+        ["@Ostern", '2026-04-05T12:00:00+02:00', true],
+        ["@Ostern", '2026-04-06T12:00:00+02:00', false],
+        ["@ostern", '2026-04-05T12:00:00+02:00', true],
+        ["@Osternhase", '2026-04-05T12:00:00+02:00', true], // not a holiday tag, ignored
+        ["@Ostern -10 + 5", '2026-03-26T12:00:00+01:00', true],
+        ["@Ostern -10 + 5", '2026-03-25T12:00:00+01:00', false],
+        ["@Ostern -10 + 5", '2026-04-10T12:00:00+02:00', true],
+        ["@Ostern -10 + 5", '2026-04-11T12:00:00+02:00', false],
+        ["@Ostern +5", '2026-04-04T12:00:00+02:00', false],
+        ["@Ostern +5", '2026-04-10T12:00:00+02:00', true],
+        ["@Ostern -5", '2026-03-31T12:00:00+02:00', true],
+        ["@Ostern -5", '2026-04-06T12:00:00+02:00', false],
+        ["@Ostern -3 Ostervorbereitung", '2026-04-02T12:00:00+02:00', true],
+        ["@Ostern - Fest", '2026-04-05T12:00:00+02:00', true],
+        ["@Ostern - Fest", '2026-04-04T12:00:00+02:00', false],
+        // Other movable holidays 2026
+        ["@Rosenmontag", '2026-02-16T12:00:00+01:00', true],
+        ["@Rosenmontag", '2026-02-17T12:00:00+01:00', false],
+        ["@Christi Himmelfahrt", '2026-05-14T12:00:00+02:00', true],
+        ["@Christi Himmelfahrt", '2026-05-15T12:00:00+02:00', false],
+        ["@Pfingsten", '2026-05-24T12:00:00+02:00', true],
+        ["@Pfingsten", '2026-05-25T12:00:00+02:00', false],
+        ["@Fronleichnam", '2026-06-04T12:00:00+02:00', true],
+        ["@Fronleichnam", '2026-06-05T12:00:00+02:00', false],
+        ["@Muttertag", '2026-05-10T12:00:00+02:00', true],
+        ["@Muttertag", '2026-05-17T12:00:00+02:00', false],
+        // Static holidays
+        ["@Weihnachten", '2026-12-25T12:00:00+01:00', true],
+        ["@Weihnachten", '2026-12-24T12:00:00+01:00', false],
+        ["@Nikolaus", '2026-12-06T12:00:00+01:00', true],
+        ["@Halloween", '2026-10-31T12:00:00+01:00', true],
+        ["@Allerheiligen", '2026-11-01T12:00:00+01:00', true],
+        ["@Allerheiligen", '2026-11-02T12:00:00+01:00', false],
+        // Ranges crossing New Year
+        ["@Silvester", '2026-12-31T12:00:00+01:00', true],
+        ["@Silvester +5", '2027-01-03T12:00:00+01:00', true],
+        ["@Silvester +5", '2027-01-06T12:00:00+01:00', false],
+        ["@Weihnachten -3 +10", '2027-01-04T12:00:00+01:00', true],
+    ];
+    for (const [tag, atTime, expected] of cases) {
+        assert.strictEqual(holidayTagPasses(tag, atTime, seed), expected, tag + " at " + atTime + " should " + (expected ? "pass" : "be excluded"));
+    }
+});
 
 // Test: noPatternNews
 testWithMultipleSeeds('noPatternNews - basic shuffle with news', (seed) => {
